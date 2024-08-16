@@ -2973,7 +2973,7 @@ void tigrInitOSX(void) {
 
     autoreleasePool = pushPool();
 
-    showPools("init start");
+    showPools("init run");
 
     objc_msgSend_id(class("NSApplication"), sel("sharedApplication"));
     objc_msgSend_t(void, NSInteger)(NSApp, sel("setActivationPolicy:"), NSApplicationActivationPolicyRegular);
@@ -4078,7 +4078,7 @@ BOOL didFinishLaunchingWithOptions(id self, SEL _sel, id application, id options
                                                       self, sel("renderMain"), NULL);
     objc_msgSend_t(void, int)(renderThread, sel("setQualityOfService:"), NSQualityOfServiceUserInteractive);
     objc_msgSend_t(void, id)(renderThread, sel("setName:"), makeNSString("Tigr Render Thread"));
-    objc_msgSend_void(renderThread, sel("start"));
+    objc_msgSend_void(renderThread, sel("run"));
 
     return YES;
 }
