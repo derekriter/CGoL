@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(CGoL
     src/main.cpp
+    src/include/tigr.h
     src/tigr.c
 )
 target_include_directories(CGoL PRIVATE src/include)
