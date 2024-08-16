@@ -20,12 +20,12 @@ const TPixel tickCol = tigrRGB(255, 255, 255);
 const TPixel radioActiveCol = tigrRGB(245, 195, 22);
 const TPixel radioInactiveCol = tigrRGB(33, 33, 33);
 
-bool* bitmap, *newBitmap;
+bool* bitmap, *newBitmap, *ogBitmap;
 int lastMouseButtons;
 bool paintMode;
 bool redraw = true;
 unsigned long tick = 0;
-std::unique_ptr<Button> run, stop, step, reset, speed1, speed5, speed10, speed20, speed50, speedMax;
+std::unique_ptr<Button> run, stop, step, reset, clear, speed1, speed5, speed10, speed20, speed50, speedMax;
 bool running = false;
 int speedSelect = 1;
 float updateInterval = 0.2;
@@ -41,6 +41,7 @@ int main() {
 
     bitmap = (bool*) calloc(BITMAP_W * BITMAP_H, sizeof(bool)); //calloc is always zero-filled
     newBitmap = (bool*) calloc(BITMAP_W * BITMAP_H, sizeof(bool));
+    ogBitmap = (bool*) calloc(BITMAP_W * BITMAP_H, sizeof(bool));
 
     run = std::make_unique<Button>(0, 10, "Run");
     run->x = SCREEN_W - run->w - (PANEL_W - run->w) / 2;
@@ -50,8 +51,10 @@ int main() {
     step->x = SCREEN_W - step->w - (PANEL_W - step->w) / 2;
     reset = std::make_unique<Button>(0, step->y + step->h + 10, "Reset");
     reset->x = SCREEN_W - reset->w - (PANEL_W - reset->w) / 2;
+    clear = std::make_unique<Button>(0, reset->y + reset->h + 2, "Clear");
+    clear->x = SCREEN_W - clear->w - (PANEL_W - clear->w) / 2;
 
-    speed1 = std::make_unique<Button>(0, reset->y + reset->h + 40, "1 Hz");
+    speed1 = std::make_unique<Button>(0, clear->y + clear->h + 40, "1 Hz");
     speed1->x = SCREEN_W - speed1->w - (PANEL_W - speed1->w) / 2;
     speed5 = std::make_unique<Button>(0, speed1->y + speed1->h + 2, "5 Hz");
     speed5->x = SCREEN_W - speed5->w - (PANEL_W - speed5->w) / 2;
@@ -79,6 +82,7 @@ int main() {
     tigrFree(screen);
     free(bitmap);
     free(newBitmap);
+    free(ogBitmap);
 
     return 0;
 }
@@ -102,6 +106,9 @@ static void update(Tigr* screen, float delta) {
     }
 
     if(run->wasClicked(screen)) {
+        if(tick == 0)
+            memcpy(ogBitmap, bitmap, BITMAP_W * BITMAP_H * sizeof(bool));
+
         running = true;
         redraw = true;
     }
@@ -111,6 +118,9 @@ static void update(Tigr* screen, float delta) {
         redraw = true;
     }
     else if(step->wasClicked(screen)) {
+        if(tick == 0)
+            memcpy(ogBitmap, bitmap, BITMAP_W * BITMAP_H * sizeof(bool));
+
         running = false;
         lastUpdateDelta = 0;
         updateBitmap();
@@ -120,7 +130,15 @@ static void update(Tigr* screen, float delta) {
         tick = 0;
         running = false;
         lastUpdateDelta = 0;
+        memcpy(bitmap, ogBitmap, BITMAP_W * BITMAP_H * sizeof(bool));
+        redraw = true;
+    }
+    else if(clear->wasClicked(screen)) {
+        tick = 0;
+        running = false;
+        lastUpdateDelta = 0;
         memset(bitmap, 0, BITMAP_W * BITMAP_H * sizeof(bool));
+        memset(ogBitmap, 0, BITMAP_W * BITMAP_H * sizeof(bool));
         redraw = true;
     }
     else if(speed1->wasClicked(screen)) {
@@ -203,6 +221,7 @@ static void render(Tigr* screen) {
     stop->render(screen);
     step->render(screen);
     reset->render(screen);
+    clear->render(screen);
     speed1->render(screen);
     speed5->render(screen);
     speed10->render(screen);
