@@ -8,7 +8,7 @@
 #define BITMAP_W 80
 #define BITMAP_H 40
 #define CELL_SIZE 16
-#define PANEL_W 80
+#define PANEL_W 70
 #define SCREEN_W (BITMAP_W * CELL_SIZE + PANEL_W)
 #define SCREEN_H (BITMAP_H * CELL_SIZE)
 
@@ -21,7 +21,6 @@ const TPixel radioActiveCol = tigrRGB(245, 195, 22);
 const TPixel radioInactiveCol = tigrRGB(33, 33, 33);
 
 bool* bitmap, *newBitmap, *ogBitmap;
-int lastMouseButtons;
 bool paintMode;
 bool redraw = true;
 unsigned long tick = 0;
@@ -44,28 +43,28 @@ int main() {
     ogBitmap = (bool*) calloc(BITMAP_W * BITMAP_H, sizeof(bool));
 
     run = std::make_unique<Button>(0, 10, "Run");
-    run->x = SCREEN_W - run->w - (PANEL_W - run->w) / 2;
+    run->x = SCREEN_W - run->w - 10;
     stop = std::make_unique<Button>(0, run->y + run->h + 2, "Stop");
-    stop->x = SCREEN_W - stop->w - (PANEL_W - stop->w) / 2;
+    stop->x = SCREEN_W - stop->w - 10;
     step = std::make_unique<Button>(0, stop->y + stop->h + 2, "Step");
-    step->x = SCREEN_W - step->w - (PANEL_W - step->w) / 2;
+    step->x = SCREEN_W - step->w - 10;
     reset = std::make_unique<Button>(0, step->y + step->h + 10, "Reset");
-    reset->x = SCREEN_W - reset->w - (PANEL_W - reset->w) / 2;
+    reset->x = SCREEN_W - reset->w - 10;
     clear = std::make_unique<Button>(0, reset->y + reset->h + 2, "Clear");
-    clear->x = SCREEN_W - clear->w - (PANEL_W - clear->w) / 2;
+    clear->x = SCREEN_W - clear->w - 10;
 
     speed1 = std::make_unique<Button>(0, clear->y + clear->h + 40, "1 Hz");
-    speed1->x = SCREEN_W - speed1->w - (PANEL_W - speed1->w) / 2;
+    speed1->x = SCREEN_W - speed1->w - 10;
     speed5 = std::make_unique<Button>(0, speed1->y + speed1->h + 2, "5 Hz");
-    speed5->x = SCREEN_W - speed5->w - (PANEL_W - speed5->w) / 2;
+    speed5->x = SCREEN_W - speed5->w - 10;
     speed10 = std::make_unique<Button>(0, speed5->y + speed5->h + 2, "10 Hz");
-    speed10->x = SCREEN_W - speed10->w - (PANEL_W - speed10->w) / 2;
+    speed10->x = SCREEN_W - speed10->w - 10;
     speed20 = std::make_unique<Button>(0, speed10->y + speed10->h + 2, "20 Hz");
-    speed20->x = SCREEN_W - speed20->w - (PANEL_W - speed20->w) / 2;
+    speed20->x = SCREEN_W - speed20->w - 10;
     speed50 = std::make_unique<Button>(0, speed20->y + speed20->h + 2, "50 Hz");
-    speed50->x = SCREEN_W - speed50->w - (PANEL_W - speed50->w) / 2;
+    speed50->x = SCREEN_W - speed50->w - 10;
     speedMax = std::make_unique<Button>(0, speed50->y + speed50->h + 2, "Max");
-    speedMax->x = SCREEN_W - speedMax->w - (PANEL_W - speedMax->w) / 2;
+    speedMax->x = SCREEN_W - speedMax->w - 10;
 
     tigrTime();
     while(!tigrClosed(screen)) {
@@ -91,13 +90,15 @@ static void update(Tigr* screen, float delta) {
     int mouseX, mouseY, mouseButtons;
     tigrMouse(screen, &mouseX, &mouseY, &mouseButtons);
 
-    if(mouseButtons & 1 && mouseX >= 0 && mouseX < BITMAP_W * CELL_SIZE && mouseY >= 0 && mouseY < BITMAP_H * CELL_SIZE) {
+    if((mouseButtons & 1 || mouseButtons & 2) && mouseX >= 0 && mouseX < BITMAP_W * CELL_SIZE && mouseY >= 0 && mouseY < BITMAP_H * CELL_SIZE) {
         int cellX = mouseX / CELL_SIZE;
         int cellY = mouseY / CELL_SIZE;
         int index = cellX + cellY * BITMAP_W;
 
-        if(!(lastMouseButtons & 1))
-            paintMode = !bitmap[index];
+        if(mouseButtons & 1)
+            paintMode = true;
+        else
+            paintMode = false;
 
         if(bitmap[index] != paintMode) {
             bitmap[index] = paintMode;
@@ -187,8 +188,6 @@ static void update(Tigr* screen, float delta) {
     }
     else if(running)
         updateBitmap();
-
-    lastMouseButtons = mouseButtons;
 }
 static void render(Tigr* screen) {
     tigrClear(screen, bgCol);
