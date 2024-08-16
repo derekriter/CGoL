@@ -1,5 +1,7 @@
 #include <cstdlib>
 #include <memory>
+#include <iostream>
+#include <cstring>
 #include "tigr.h"
 #include "button.hpp"
 
@@ -18,31 +20,35 @@ const TPixel tickCol = tigrRGB(255, 255, 255);
 const TPixel radioActiveCol = tigrRGB(245, 195, 22);
 const TPixel radioInactiveCol = tigrRGB(33, 33, 33);
 
-bool* bitmap;
+bool* bitmap, *newBitmap;
 int lastMouseButtons;
 bool paintMode;
 bool redraw = true;
 unsigned long tick = 0;
-std::unique_ptr<Button> run, stop, step, reset, speed1, speed5, speed10, speed20;
+std::unique_ptr<Button> run, stop, step, reset, speed1, speed5, speed10, speed20, speed50, speedMax;
 bool running = false;
 int speedSelect = 1;
 float updateInterval = 0.2;
+float lastUpdateDelta = 0;
 
 static void update(Tigr* screen, float delta);
 static void render(Tigr* screen);
+static void updateBitmap();
+static bool getNeighborFromIndex(int x, int y, int index);
 
 int main() {
     Tigr* screen = tigrWindow(SCREEN_W, SCREEN_H, "CGoL", TIGR_FIXED);
 
     bitmap = (bool*) calloc(BITMAP_W * BITMAP_H, sizeof(bool)); //calloc is always zero-filled
+    newBitmap = (bool*) calloc(BITMAP_W * BITMAP_H, sizeof(bool));
 
     run = std::make_unique<Button>(0, 10, "Run");
     run->x = SCREEN_W - run->w - (PANEL_W - run->w) / 2;
     stop = std::make_unique<Button>(0, run->y + run->h + 2, "Stop");
     stop->x = SCREEN_W - stop->w - (PANEL_W - stop->w) / 2;
-    step = std::make_unique<Button>(0, stop->y + stop->h + 10, "Step");
+    step = std::make_unique<Button>(0, stop->y + stop->h + 2, "Step");
     step->x = SCREEN_W - step->w - (PANEL_W - step->w) / 2;
-    reset = std::make_unique<Button>(0, step->y + step->h + 2, "Reset");
+    reset = std::make_unique<Button>(0, step->y + step->h + 10, "Reset");
     reset->x = SCREEN_W - reset->w - (PANEL_W - reset->w) / 2;
 
     speed1 = std::make_unique<Button>(0, reset->y + reset->h + 40, "1 Hz");
@@ -53,6 +59,10 @@ int main() {
     speed10->x = SCREEN_W - speed10->w - (PANEL_W - speed10->w) / 2;
     speed20 = std::make_unique<Button>(0, speed10->y + speed10->h + 2, "20 Hz");
     speed20->x = SCREEN_W - speed20->w - (PANEL_W - speed20->w) / 2;
+    speed50 = std::make_unique<Button>(0, speed20->y + speed20->h + 2, "50 Hz");
+    speed50->x = SCREEN_W - speed50->w - (PANEL_W - speed50->w) / 2;
+    speedMax = std::make_unique<Button>(0, speed50->y + speed50->h + 2, "Max");
+    speedMax->x = SCREEN_W - speedMax->w - (PANEL_W - speedMax->w) / 2;
 
     tigrTime();
     while(!tigrClosed(screen)) {
@@ -68,6 +78,7 @@ int main() {
     }
     tigrFree(screen);
     free(bitmap);
+    free(newBitmap);
 
     return 0;
 }
@@ -96,38 +107,68 @@ static void update(Tigr* screen, float delta) {
     }
     else if(stop->wasClicked(screen)) {
         running = false;
+        lastUpdateDelta = 0;
         redraw = true;
     }
     else if(step->wasClicked(screen)) {
-        tick++;
         running = false;
+        lastUpdateDelta = 0;
+        updateBitmap();
         redraw = true;
     }
     else if(reset->wasClicked(screen)) {
         tick = 0;
         running = false;
+        lastUpdateDelta = 0;
+        memset(bitmap, 0, BITMAP_W * BITMAP_H * sizeof(bool));
         redraw = true;
     }
     else if(speed1->wasClicked(screen)) {
         speedSelect = 0;
         updateInterval = 1;
+        lastUpdateDelta = 0;
         redraw = true;
     }
     else if(speed5->wasClicked(screen)) {
         speedSelect = 1;
         updateInterval = 0.2;
+        lastUpdateDelta = 0;
         redraw = true;
     }
     else if(speed10->wasClicked(screen)) {
         speedSelect = 2;
         updateInterval = 0.1;
+        lastUpdateDelta = 0;
         redraw = true;
     }
     else if(speed20->wasClicked(screen)) {
         speedSelect = 3;
         updateInterval = 0.05;
+        lastUpdateDelta = 0;
         redraw = true;
     }
+    else if(speed50->wasClicked(screen)) {
+        speedSelect = 4;
+        updateInterval = 0.02;
+        lastUpdateDelta = 0;
+        redraw = true;
+    }
+    else if(speedMax->wasClicked(screen)) {
+        speedSelect = 5;
+        updateInterval = 0;
+        lastUpdateDelta = 0;
+        redraw = true;
+    }
+
+    if(running && updateInterval > 0) {
+        lastUpdateDelta += delta;
+        while(lastUpdateDelta >= updateInterval) {
+            updateBitmap();
+            lastUpdateDelta -= updateInterval;
+        }
+    }
+    else if(running)
+        updateBitmap();
 
     lastMouseButtons = mouseButtons;
 }
@@ -166,6 +207,8 @@ static void render(Tigr* screen) {
     speed5->render(screen);
     speed10->render(screen);
     speed20->render(screen);
+    speed50->render(screen);
+    speedMax->render(screen);
 
     tigrFillCircle(screen, SCREEN_W - PANEL_W + 5, run->y + run->h / 2, 3, running ? radioActiveCol : radioInactiveCol);
     tigrFillCircle(screen, SCREEN_W - PANEL_W + 5, stop->y + stop->h / 2, 3, running ? radioInactiveCol : radioActiveCol);
@@ -174,10 +217,86 @@ static void render(Tigr* screen) {
     tigrFillCircle(screen, SCREEN_W - PANEL_W + 5, speed5->y + speed5->h / 2, 3, speedSelect == 1 ? radioActiveCol : radioInactiveCol);
     tigrFillCircle(screen, SCREEN_W - PANEL_W + 5, speed10->y + speed10->h / 2, 3, speedSelect == 2 ? radioActiveCol : radioInactiveCol);
     tigrFillCircle(screen, SCREEN_W - PANEL_W + 5, speed20->y + speed20->h / 2, 3, speedSelect == 3 ? radioActiveCol : radioInactiveCol);
+    tigrFillCircle(screen, SCREEN_W - PANEL_W + 5, speed50->y + speed50->h / 2, 3, speedSelect == 4 ? radioActiveCol : radioInactiveCol);
+    tigrFillCircle(screen, SCREEN_W - PANEL_W + 5, speedMax->y + speedMax->h / 2, 3, speedSelect == 5 ? radioActiveCol : radioInactiveCol);
 
     std::string tickMsgStr = "T: " + std::to_string(tick);
     const char* tickMsg = tickMsgStr.c_str();
     int msgW = tigrTextWidth(tfont, tickMsg);
     int msgH = tigrTextHeight(tfont, tickMsg);
     tigrPrint(screen, tfont, SCREEN_W - msgW - 3, SCREEN_H - msgH, tickCol, tickMsg);
+}
+static void updateBitmap() {
+    memcpy(newBitmap, bitmap, BITMAP_W * BITMAP_H * sizeof(bool));
+
+    for(int y = 0; y < BITMAP_H; y++) {
+        for(int x = 0; x < BITMAP_W; x++) {
+            int i = x + y * BITMAP_W;
+
+            int nCount = getNeighborFromIndex(x, y, 0) +
+                getNeighborFromIndex(x, y, 1) +
+                getNeighborFromIndex(x, y, 2) +
+                getNeighborFromIndex(x, y, 3) +
+                getNeighborFromIndex(x, y, 4) +
+                getNeighborFromIndex(x, y, 5) +
+                getNeighborFromIndex(x, y, 6) +
+                getNeighborFromIndex(x, y, 7);
+
+            if(bitmap[i] && nCount < 2 || nCount > 3)
+                newBitmap[i] = false;
+            else if(nCount == 3)
+                newBitmap[i] = true;
+        }
+    }
+
+    std::swap(bitmap, newBitmap);
+    tick++;
+    redraw = true;
+}
+static bool getNeighborFromIndex(int x, int y, int index) {
+    int nX = x;
+    int nY = y;
+
+    switch(index) {
+        case 0:
+            nX--;
+            nY--;
+            break;
+        case 1:
+            nY--;
+            break;
+        case 2:
+            nX++;
+            nY--;
+            break;
+        case 3:
+            nX++;
+            break;
+        case 4:
+            nX++;
+            nY++;
+            break;
+        case 5:
+            nY++;
+            break;
+        case 6:
+            nX--;
+            nY++;
+            break;
+        case 7:
+            nX--;
+            break;
+    }
+
+    if(nX < 0)
+        nX += BITMAP_W;
+    else if(nX >= BITMAP_W)
+        nX -= BITMAP_W;
+
+    if(nY < 0)
+        nY += BITMAP_H;
+    else if(nY >= BITMAP_H)
+        nY -= BITMAP_H;
+
+    return bitmap[nX + nY * BITMAP_W];
 }
